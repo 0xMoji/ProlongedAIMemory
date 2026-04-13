@@ -28,9 +28,22 @@ Directory roles:
 ## Root Files
 
 - `AGENTS.md`: operational rules for any agent working inside the vault.
-- `memory.config.json`: vault metadata, schema version, and optional backend configuration.
+- `memory.config.json`: vault metadata, schema version, optional namespaces, and MemPalace backend configuration.
 - `index.md`: generated directory of the curated knowledge layer.
 - `log.md`: append-only operational log.
+
+## Config Structure
+
+`memory.config.json` stores the top-level vault configuration.
+
+Important sections:
+
+- `vault`: display name for the vault
+- `agent`: default primary agent
+- `namespaces.enabled`: enables multi-project organization
+- `namespaces.wings`: project names that should mirror `wiki/<wing>/`
+- `palace.enabled`: whether the local MemPalace recall layer is active
+- `palace.path`: relative path to the local palace directory
 
 ## Wiki Page Requirements
 

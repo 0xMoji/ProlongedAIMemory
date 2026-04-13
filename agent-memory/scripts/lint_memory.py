@@ -26,7 +26,55 @@ def parse_args() -> argparse.Namespace:
         default=45,
         help="Warn when a non-archived page is older than this many days",
     )
+    parser.add_argument(
+        "--check-contradictions",
+        action="store_true",
+        help="Run basic contradiction checks across wiki pages (frontmatter-level)",
+    )
     return parser.parse_args()
+
+
+def check_contradictions(pages_meta: list[dict]) -> list[str]:
+    """Run lightweight contradiction checks based on frontmatter only."""
+    issues: list[str] = []
+
+    by_prefix: dict[str, list[dict]] = {}
+    for page in pages_meta:
+        page_type = page.get("type", "unknown")
+        if page_type not in {"entity", "topic", "decision"}:
+            continue
+        prefix = page["title"].split(":")[0].split(" - ")[0].strip().lower()
+        by_prefix.setdefault(prefix, []).append(page)
+
+    for prefix, group in by_prefix.items():
+        if len(group) < 2:
+            continue
+        statuses = {page["status"] for page in group}
+        if "active" in statuses and "archived" in statuses:
+            slugs = [page["slug"] for page in group]
+            issues.append(
+                f"[contradiction] '{prefix}' appears as both active and archived: {slugs}"
+            )
+
+    today = date.today()
+    for page in pages_meta:
+        if page["status"] != "active":
+            continue
+        updated = page.get("updated", "unknown")
+        if updated == "unknown":
+            continue
+        try:
+            updated_date = date.fromisoformat(updated)
+        except ValueError:
+            continue
+        age_days = (today - updated_date).days
+        if age_days > 90:
+            issues.append(
+                f"[contradiction] '{page['slug']}' is marked 'active' but has not been "
+                f"updated in {age_days} days — consider marking it 'stale'"
+            )
+
+    return issues
 
 
 def main() -> int:
@@ -44,6 +92,7 @@ def main() -> int:
     known_slugs: set[str] = set()
     incoming_links: dict[str, int] = {}
     outbound_links: dict[str, set[str]] = {}
+    pages_meta: list[dict] = []
 
     for page_path in iter_wiki_pages(vault):
         slug = page_slug(wiki_root, page_path)
@@ -68,6 +117,7 @@ def main() -> int:
 
         updated = frontmatter.get("updated")
         status = str(frontmatter.get("status") or "")
+        page_type = str(frontmatter.get("type") or "unknown")
         if isinstance(updated, str):
             try:
                 updated_date = date.fromisoformat(updated)
@@ -83,6 +133,16 @@ def main() -> int:
         for target in targets:
             incoming_links[target] = incoming_links.get(target, 0) + 1
 
+        pages_meta.append(
+            {
+                "slug": slug,
+                "title": str(frontmatter.get("title") or slug),
+                "type": page_type,
+                "status": status or "unknown",
+                "updated": str(updated or "unknown"),
+            }
+        )
+
     for slug, targets in sorted(outbound_links.items()):
         for target in sorted(targets):
             if target not in known_slugs:
@@ -94,6 +154,9 @@ def main() -> int:
             continue
         if incoming_links.get(slug, 0) == 0:
             warnings.append(f"{slug}: orphan page with no incoming wiki links")
+
+    if args.check_contradictions:
+        warnings.extend(check_contradictions(pages_meta))
 
     lines = [f"Memory lint report for {vault}", ""]
     if errors:

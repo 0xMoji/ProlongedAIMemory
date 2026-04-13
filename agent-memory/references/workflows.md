@@ -22,8 +22,12 @@ Use ingest when new information arrives.
 
 Promotion heuristic:
 
-- Promote when the information is likely to matter again.
-- Leave it in `scratch/` when it only matters for the current task.
+- If the same topic has appeared in multiple separate queries, promote it.
+- If the fact is grounded in `raw/` evidence, promote it with explicit `sources`.
+- If a future agent starting cold would benefit from it, promote it.
+- If it updates or contradicts an existing wiki page, promote it and revise the existing page.
+- If it only matters for the current task and likely will not recur, leave it in `scratch/`.
+- If in doubt, promote it.
 
 ## Query
 
@@ -41,6 +45,7 @@ Run lint after structural edits or before handing the vault to another agent:
 
 ```bash
 python scripts/lint_memory.py /path/to/vault
+python scripts/lint_memory.py /path/to/vault --check-contradictions
 ```
 
 Lint checks:
@@ -64,14 +69,70 @@ Periodic maintenance should:
 
 ## Optional MemPalace Integration
 
-If the vault also uses MemPalace, treat it like this:
+MemPalace is a local memory system that stores conversation history and project
+material in a local ChromaDB-backed index. It runs on your machine without
+requiring hosted memory APIs.
 
-- `raw/` remains the immutable evidence layer.
-- `palace/` stores retrieval indexes, exported manifests, or backend notes.
-- `wiki/` remains the human-readable, agent-maintained layer.
+If `memory.config.json` shows `"palace": {"enabled": true}`, the integration is active.
 
-Recommended discipline:
+### Setup
 
-- retrieve with MemPalace when recall matters
-- answer from the wiki when synthesis matters
-- update the wiki when new durable knowledge is discovered
+```bash
+python scripts/bootstrap_memory.py /path/to/vault --agent-name Codex --enable-palace
+```
+
+This creates a local collection inside `/path/to/vault/palace/`.
+
+### Mine your data
+
+Run this whenever you have new raw material to index:
+
+```bash
+# Conversation exports (Claude, ChatGPT, Slack)
+mempalace --palace /path/to/vault/palace mine /path/to/vault/raw --mode convos --wing <project-name>
+
+# Code and documentation
+mempalace --palace /path/to/vault/palace mine /path/to/vault/raw --mode projects --wing <project-name>
+
+# Inspect the local index
+mempalace --palace /path/to/vault/palace status
+```
+
+### Retrieve from the palace
+
+Use MemPalace search when `index.md` and `wiki/` do not surface the answer:
+
+```bash
+# Semantic search across the local palace
+mempalace --palace /path/to/vault/palace search "why did we decide to use Postgres"
+
+# Scoped to a single project wing
+mempalace --palace /path/to/vault/palace search "auth migration" --wing <project-name>
+```
+
+### Agent retrieval discipline
+
+When palace integration is enabled, follow this order:
+
+1. Check `index.md` and matching `wiki/` pages first.
+2. If the wiki is missing, stale, or underspecified, run `mempalace search` against the local palace.
+3. Synthesize the answer from wiki summaries plus verbatim palace evidence.
+4. If new durable knowledge is discovered, update `wiki/` and append to `log.md`.
+
+Rule of thumb:
+
+- `palace/` is the recall layer.
+- `wiki/` is the synthesis layer.
+
+Do not answer directly from raw palace output when a curated wiki page already exists.
+
+### MCP server
+
+If you are using an MCP-capable environment:
+
+```bash
+claude mcp add mempalace -- python -m mempalace.mcp_server --palace /path/to/vault/palace
+```
+
+This gives the agent direct access to tools such as `mempalace_status`,
+`mempalace_search`, and the MemPalace knowledge graph queries.

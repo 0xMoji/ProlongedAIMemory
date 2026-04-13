@@ -39,6 +39,12 @@ python agent-memory/scripts/rebuild_index.py /path/to/vault
 python agent-memory/scripts/lint_memory.py /path/to/vault
 ```
 
+Enable the local MemPalace recall layer during bootstrap:
+
+```bash
+python agent-memory/scripts/bootstrap_memory.py /path/to/vault --agent-name Codex --enable-palace
+```
+
 ## Philosophy
 
 - `raw/` is immutable evidence

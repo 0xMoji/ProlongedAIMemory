@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import argparse
 from collections import defaultdict
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 from _memory_utils import iter_wiki_pages, page_slug, parse_frontmatter
@@ -14,6 +14,11 @@ from _memory_utils import iter_wiki_pages, page_slug, parse_frontmatter
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("vault", nargs="?", default=".", help="Path to the memory vault")
+    parser.add_argument(
+        "--since",
+        help="Only include pages updated on or after this date (YYYY-MM-DD). "
+        "Output goes to stdout instead of overwriting index.md.",
+    )
     return parser.parse_args()
 
 
@@ -48,6 +53,32 @@ def main() -> int:
                 "summary": summary,
             }
         )
+
+    if args.since:
+        try:
+            cutoff = date.fromisoformat(args.since)
+        except ValueError:
+            raise SystemExit(f"Invalid date format for --since: {args.since}. Use YYYY-MM-DD.")
+
+        filtered = []
+        for page in pages:
+            if page["updated"] == "unknown":
+                continue
+            try:
+                updated_date = date.fromisoformat(page["updated"])
+            except ValueError:
+                continue
+            if updated_date >= cutoff:
+                filtered.append(page)
+
+        print(f"# Pages updated since {args.since}\n")
+        print(f"Found {len(filtered)} page(s).\n")
+        for page in sorted(filtered, key=lambda item: item["updated"], reverse=True):
+            line = f"- [[{page['slug']}]] | {page['updated']}"
+            if page["summary"]:
+                line += f" | {page['summary']}"
+            print(line)
+        return 0
 
     grouped: dict[str, list[dict]] = defaultdict(list)
     stale_pages = []

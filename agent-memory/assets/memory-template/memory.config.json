@@ -1,10 +1,16 @@
 {
-  "vault_name": "{{VAULT_NAME}}",
-  "agent_name": "{{AGENT_NAME}}",
-  "schema_version": 1,
+  "vault": "{{VAULT_NAME}}",
+  "agent": "{{AGENT_NAME}}",
   "created": "{{TODAY}}",
-  "retrieval_backend": {
-    "mode": "filesystem",
-    "palace_path": null
+  "schema_version": "1.0",
+  "namespaces": {
+    "description": "Optional multi-project support. Mirrors the MemPalace 'wing' concept. Add project names here and use matching subdirs in wiki/ (for example wiki/project-alpha/).",
+    "enabled": false,
+    "wings": []
+  },
+  "palace": {
+    "enabled": false,
+    "path": "palace/",
+    "backend": "mempalace"
   }
 }

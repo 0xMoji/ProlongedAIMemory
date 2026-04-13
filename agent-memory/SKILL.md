@@ -46,8 +46,52 @@ When the user asks you to save new memory:
 
 1. Put raw captures in `raw/` or append quick notes to `inbox/capture.md`.
 2. Promote durable insights into `wiki/` pages instead of leaving them only in inbox or scratch files.
+   Promotion decision rules (evaluate in order, stop at first match):
+   - If the same topic has come up in 2 or more separate queries, promote it.
+   - If the fact has a file in `raw/` as its evidence source, promote it and add `sources:` frontmatter.
+   - If a future agent starting cold would benefit from knowing this, promote it.
+   - If the fact contradicts or updates something already in `wiki/`, promote it and update the existing page.
+   - If it only matters for the task at hand and likely will not recur, leave it in `scratch/`.
+   - When genuinely unsure, promote it. Orphan wiki pages are less harmful than lost knowledge.
 3. Append a short entry to `log.md`.
 4. Rebuild the index and run lint if multiple pages changed.
+
+## Multi-project Support
+
+If you maintain memory across multiple projects, enable namespaces:
+
+1. In `memory.config.json`, set `namespaces.enabled` to `true`.
+2. List the corresponding `wings`, for example `project-alpha`, `project-beta`, or `personal`.
+3. Organize `wiki/` into matching subdirectories.
+
+Example:
+
+```json
+"namespaces": {
+  "enabled": true,
+  "wings": ["project-alpha", "project-beta", "personal"]
+}
+```
+
+```text
+wiki/
+├── project-alpha/
+│   ├── architecture.md
+│   └── decisions.md
+├── project-beta/
+│   └── overview.md
+└── personal/
+    └── goals.md
+```
+
+If MemPalace is enabled, mine each project into its matching wing:
+
+```bash
+mempalace --palace /path/to/vault/palace mine /path/to/vault/raw/project-alpha --wing project-alpha
+mempalace --palace /path/to/vault/palace mine /path/to/vault/raw/project-beta --wing project-beta
+```
+
+When namespaces are active, prefer querying `wiki/<wing-name>/` before running a broad palace search.
 
 ## Hard Rules
 
@@ -88,3 +132,10 @@ A healthy vault should always satisfy these conditions:
 - `log.md` tells the story of what changed and why
 
 When in doubt, optimize for a vault that a future agent can navigate without the original chat history.
+
+To answer "what changed recently", run:
+
+```bash
+python scripts/rebuild_index.py /path/to/vault --since 2026-04-01
+grep -E "^\- [0-9]{4}-" /path/to/vault/log.md | tail -20
+```

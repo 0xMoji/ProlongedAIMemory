@@ -15,6 +15,7 @@ Use this vault to preserve long-term memory in a form that future agents can nav
 - `inbox/` is for uncategorized captures that still need promotion.
 - `scratch/` is temporary and may be deleted or reorganized freely.
 - `palace/` is optional retrieval infrastructure, not the only truth source.
+- If `namespaces.enabled` is true in `memory.config.json`, mirror project wings with matching `wiki/<wing>/` subdirectories.
 
 ## Working Order
 
