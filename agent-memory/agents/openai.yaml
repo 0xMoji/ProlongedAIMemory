@@ -1,0 +1,7 @@
+interface:
+  display_name: "Agent Memory"
+  short_description: "Run a self-updating memory wiki for an agent"
+  default_prompt: "Use $agent-memory to initialize or maintain a persistent memory wiki for this project."
+
+policy:
+  allow_implicit_invocation: true

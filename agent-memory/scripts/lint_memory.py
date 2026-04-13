@@ -1,0 +1,115 @@
+#!/usr/bin/env python3
+"""Lint a memory vault for structural and content issues."""
+
+from __future__ import annotations
+
+import argparse
+from datetime import date
+from pathlib import Path
+
+from _memory_utils import (
+    REQUIRED_FRONTMATTER_KEYS,
+    REQUIRED_ROOT_PATHS,
+    collect_wiki_links,
+    iter_wiki_pages,
+    page_slug,
+    parse_frontmatter,
+)
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("vault", nargs="?", default=".", help="Path to the memory vault")
+    parser.add_argument(
+        "--stale-days",
+        type=int,
+        default=45,
+        help="Warn when a non-archived page is older than this many days",
+    )
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+    vault = Path(args.vault).expanduser().resolve()
+    wiki_root = vault / "wiki"
+
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    for rel in REQUIRED_ROOT_PATHS:
+        if not (vault / rel).exists():
+            errors.append(f"Missing required path: {rel}")
+
+    known_slugs: set[str] = set()
+    incoming_links: dict[str, int] = {}
+    outbound_links: dict[str, set[str]] = {}
+
+    for page_path in iter_wiki_pages(vault):
+        slug = page_slug(wiki_root, page_path)
+        known_slugs.add(slug)
+        text = page_path.read_text(encoding="utf-8")
+        frontmatter, body = parse_frontmatter(text)
+
+        if not frontmatter:
+            errors.append(f"{slug}: missing frontmatter")
+            continue
+
+        for key in REQUIRED_FRONTMATTER_KEYS:
+            if key not in frontmatter or frontmatter[key] in ("", []):
+                errors.append(f"{slug}: missing required frontmatter key '{key}'")
+
+        sources = frontmatter.get("sources", [])
+        if isinstance(sources, str):
+            sources = [sources]
+        for source in sources:
+            if not (vault / source).exists():
+                errors.append(f"{slug}: source does not exist: {source}")
+
+        updated = frontmatter.get("updated")
+        status = str(frontmatter.get("status") or "")
+        if isinstance(updated, str):
+            try:
+                updated_date = date.fromisoformat(updated)
+            except ValueError:
+                errors.append(f"{slug}: invalid updated date: {updated}")
+            else:
+                age = (date.today() - updated_date).days
+                if status not in {"archived", "stale"} and age > args.stale_days:
+                    warnings.append(f"{slug}: page is {age} days old; consider reviewing it")
+
+        targets = collect_wiki_links(body)
+        outbound_links[slug] = targets
+        for target in targets:
+            incoming_links[target] = incoming_links.get(target, 0) + 1
+
+    for slug, targets in sorted(outbound_links.items()):
+        for target in sorted(targets):
+            if target not in known_slugs:
+                errors.append(f"{slug}: broken wiki link: [[{target}]]")
+
+    for page_path in iter_wiki_pages(vault):
+        slug = page_slug(wiki_root, page_path)
+        if slug == "home":
+            continue
+        if incoming_links.get(slug, 0) == 0:
+            warnings.append(f"{slug}: orphan page with no incoming wiki links")
+
+    lines = [f"Memory lint report for {vault}", ""]
+    if errors:
+        lines.append("Errors:")
+        lines.extend(f"- {item}" for item in errors)
+        lines.append("")
+    if warnings:
+        lines.append("Warnings:")
+        lines.extend(f"- {item}" for item in warnings)
+        lines.append("")
+    if not errors and not warnings:
+        lines.append("No issues found.")
+
+    print("\n".join(lines).rstrip())
+    return 1 if errors else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

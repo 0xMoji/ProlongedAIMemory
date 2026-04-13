@@ -1,0 +1,10 @@
+{
+  "vault_name": "{{VAULT_NAME}}",
+  "agent_name": "{{AGENT_NAME}}",
+  "schema_version": 1,
+  "created": "{{TODAY}}",
+  "retrieval_backend": {
+    "mode": "filesystem",
+    "palace_path": null
+  }
+}
